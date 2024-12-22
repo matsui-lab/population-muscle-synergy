@@ -1,0 +1,185 @@
+---
+title: "Population-level muscle synergy analysis with different sample sizes"
+author: "Yusuke Matsui"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+# Introduction
+
+This RMarkdown document provides a comprehensive pipeline for synergy analysis using NMF, including visualization of both `H` and `W` matrices for individual, concatenated, and population synergies.
+
+## Load Libraries and Data
+
+```{r setup, include=TRUE,eval=FALSE}
+# Load required libraries
+library(parallel)
+library(data.table)
+library(NMF)
+library(tidyverse)
+
+# Load custom functions and data
+source("simulation_function.R")
+source("modules.R")
+load("m_arr_lt.rda") # Load muscle activity data
+```
+
+## Define Parameters and Preprocessing
+
+```{r parameters,eval=FALSE}
+# Define muscle names and other parameters
+mn <- c("Rt_TA", "Lt_TA", "Rt_LG", "Lt_LG", "Rt_MG", "Lt_MG", 
+        "Rt_VM", "Lt_VM", "Rt_Ham", "Lt_Ham")
+nsyn <- 4  # Number of synergies
+nrun <- 10 # Number of NMF runs
+set.seed(1234) # For reproducibility
+
+# Preprocess data: Replace negative values with zero
+simdat <- m_arr_lt
+simdat[simdat < 0] <- 0
+```
+
+## Compute Individual Synergies
+
+```{r individual-synergies,eval=FALSE}
+# Set up parallel processing
+cl <- makeCluster(7) # Use 7 cores
+clusterExport(cl, c("simdat", "nsyn", "nrun"))
+
+# Compute synergies for each individual using NMF
+ind_syn <- parLapply(cl, 1:dim(simdat)[3], function(ii) {
+  library(NMF)
+  nmf(simdat[, , ii], "brunet", rank = nsyn, seed = "nndsvd", nrun = nrun)
+})
+
+# Stop the cluster
+stopCluster(cl)
+```
+
+## Perform Synergy Matching
+
+```{r synergy-matching,eval=FALSE}
+# Initialize synergy matching matrix
+refidx <- 1
+synMatch <- matrix(NA, nrow = length(ind_syn), ncol = nsyn)
+rownames(synMatch) <- paste("ind", 1:length(ind_syn))
+colnames(synMatch) <- paste("synergy", 1:nsyn)
+
+# Match synergies across individuals
+for (i in 1:nrow(synMatch)) {
+  synCor <- apply(ind_syn[[refidx]]@fit@H, 1, function(xx) 
+    apply(ind_syn[[i]]@fit@H, 1, function(yy) cov(xx, yy)))
+  
+  comb <- apply(synCor, 2, function(x) which(x > 0), simplify = FALSE)
+  len <- sapply(comb, length)
+  
+  if (all(len == 1)) {
+    select_comb <- matrix(unlist(comb), nrow = 1)
+  } else {
+    comb <- do.call(expand.grid, comb)
+    select_comb <- comb[apply(comb, 1, function(x) length(table(x)) == nsyn), ]
+  }
+  
+  if (nrow(select_comb) > 0) {
+    cost <- apply(select_comb, 1, function(x) 
+      sum(sapply(seq_along(x), function(y) synCor[x[y], y])))
+    idx <- which.max(cost)
+    synMatch[i, ] <- unlist(select_comb[idx, ])
+  }
+}
+
+# Remove invalid rows
+rmidx <- apply(synMatch, 1, function(x) any(is.na(x)))
+synMatch2 <- synMatch[!rmidx, ]
+ind_syn2 <- ind_syn[!rmidx]
+```
+
+## Compute Population Synergies
+
+```{r population-synergies,eval=FALSE}
+# Compute mean muscle activity
+simdat_mu <- apply(simdat, c(1, 2), mean)
+simdat_mu[simdat_mu < 0] <- 0
+
+# Perform NMF for population-level synergy
+nmf_pop <- nmf(simdat_mu, "brunet", rank = nsyn, seed = "nndsvd", nrun = nrun)
+
+# Extract population-level matrices
+W_pop <- nmf_pop@fit@W
+H_pop <- nmf_pop@fit@H
+colnames(H_pop) <- mn
+```
+
+## Visualize `H` and `W` Matrices
+
+### Visualize `H` Matrix
+
+```{r visualize-h, fig.width=10, fig.height=6,eval=FALSE}
+# Prepare data for visualization of H matrix
+Hs_mean <- t(sapply(1:nsyn, function(ii) rowMeans(sapply(Hs, function(xx) xx[ii, ]))))
+Hs_mean_rel <- 100 * Hs_mean / max(Hs_mean)
+H_pop_rel <- 100 * H_pop / max(H_pop)
+
+df_individual <- data.frame(Hs_mean_rel)
+colnames(df_individual) <- mn
+df_individual$Synergy <- paste("Synergy", 1:nsyn)
+df_individual_long <- tidyr::gather(df_individual, key = "Muscle", value = "Value", -Synergy)
+
+df_population <- data.frame(H_pop_rel)
+colnames(df_population) <- mn
+df_population$Synergy <- paste("Synergy", 1:nsyn)
+df_population_long <- tidyr::gather(df_population, key = "Muscle", value = "Value", -Synergy)
+
+# Combine data for visualization
+df_individual_long$Method <- "Individual"
+df_population_long$Method <- "Population"
+
+df_combined <- rbind(df_individual_long, df_population_long)
+
+# Plot H matrix comparisons
+gg_h <- ggplot(data = df_combined, aes(x = Muscle, y = Value, fill = Method)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  facet_wrap(Synergy ~ Method, nrow = 4, ncol = 3) +
+  theme(axis.text.x = element_text(angle = 45, vjust = 0.5, hjust = 0.5)) +
+  ylab("Value [%]") +
+  xlab("Muscle") +
+  ggtitle("H Matrix Synergy Comparison")
+print(gg_h)
+```
+
+### Visualize `W` Matrix
+
+```{r visualize-w, fig.width=10, fig.height=6,eval=FALSE}
+# Prepare data for visualization of W matrix
+W_pop_rel <- apply(W_pop, 2, function(x) 100 * x / max(x))
+W_concat <- array(nmf_pop@fit@W, dim = c(dim(simdat)[1], dim(simdat)[3], nsyn))
+W_concat_mean <- apply(W_concat, c(1, 3), mean)
+
+df_W_pop <- data.frame(W_pop_rel)
+colnames(df_W_pop) <- paste("Synergy", 1:nsyn)
+df_W_pop$Time <- seq_len(nrow(W_pop_rel))
+df_W_long <- tidyr::gather(df_W_pop, key = "Synergy", value = "Value", -Time)
+
+# Plot W matrix comparisons
+gg_w <- ggplot(data = df_W_long, aes(x = Time, y = Value, color = Synergy)) +
+  geom_line(size = 1.2) +
+  ylab("Value [%]") +
+  xlab("Time") +
+  ggtitle("W Matrix Synergy Comparison")
+print(gg_w)
+```
+
+## Save Results and Visualizations
+
+```{r save-results,eval=FALSE}
+# Save all results to the current directory
+save.image("results.rda")
+
+# Save the visualizations
+ggsave("H_matrix_synergy_comparison.pdf", plot = gg_h, width = 10, height = 10)
+ggsave("W_matrix_synergy_comparison.pdf", plot = gg_w, width = 10, height = 10)
+```
+
+# Conclusion
+
+This document provides a complete pipeline for synergy analysis using NMF, including individual and population synergy calculations, synergy matching, and visualization of both `H` and `W` matrices.

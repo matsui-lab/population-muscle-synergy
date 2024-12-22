@@ -1,0 +1,142 @@
+---
+title: "Population-level muscle synergy analysis with outliers"
+author: "Yusuke Matsui"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+# Introduction
+
+This document details a comprehensive analysis pipeline for synergy simulations, incorporating simulation generation, individual synergy computation, population synergy computation, and visualization of results.
+
+## Load Libraries and Data
+
+```{r setup, include=TRUE, eval=FALSE}
+library(parallel)
+library(data.table)
+library(NMF)
+library(tidyverse)
+
+# Load custom functions and references
+source("simulation_function.R")
+source("modules.R")
+ref <- readRDS("m_arr_pc_mean_lt.rds")
+```
+
+## Parameter Initialization
+
+```{r initialize-parameters, eval=FALSE}
+param <- seq(10, 100, by=10)  # Sample sizes
+mn <- c("Rt_TA", "Lt_TA", "Rt_LG", "Lt_LG", "Rt_MG", "Lt_MG", "Rt_VM", "Lt_VM", "Rt_Ham", "Lt_Ham")
+nsyn <- 4  # Number of synergies
+nrun <- 10  # Number of NMF runs
+set.seed(1234)
+```
+
+## Generate Simulation Data
+
+```{r generate-simulation-data, eval=FALSE}
+for (s in seq_along(param)) {
+  n <- param[s]
+  ns <- ceiling(c(0.9, 0.1) * n)  # Define mixture ratio
+  st <- c(1, cumsum(ns[-length(ns)]) + 1)
+  ed <- cumsum(ns)
+  simdat <- array(NA, dim = c(nrow(ref), ncol(ref), n))
+  
+  for (i in seq_along(ns)) {
+    for (j in seq_len(ncol(ref))) {
+      set.seed(100 * i + 50 * j)
+      if (i == 1) {
+        simdat[, j, st[i]:ed[i]] <- simEMG_envelope_multi(ref[, j], nsim = ns[i],
+                                                          n_jump = 0, amp_rate = rbeta(1, 3, 1),
+                                                          noise_rate = 1, plot.it = FALSE)
+      } else {
+        simdat[, j, st[i]:ed[i]] <- simEMG_envelope_multi(ref[, j], nsim = ns[i],
+                                                          n_jump = 2, amp_rate = 1,
+                                                          noise_rate = 1.5, plot.it = FALSE)
+      }
+    }
+  }
+  simdat[simdat < 0] <- 0
+}
+```
+
+## Compute Individual Synergies
+
+```{r individual-synergies, eval=FALSE}
+cl <- makeCluster(10)
+clusterExport(cl, c("simdat", "nsyn", "nrun"))
+
+ind_syn <- parLapply(cl, 1:dim(simdat)[3], function(ii) {
+  library(NMF)
+  nmf(simdat[, , ii], "brunet", rank = nsyn, seed = "nndsvd", nrun = nrun)
+})
+stopCluster(cl)
+```
+
+## Perform Synergy Matching
+
+```{r synergy-matching, eval=FALSE}
+synMatch <- matrix(NA, nrow = length(ind_syn), ncol = nsyn)
+for (i in 1:nrow(synMatch)) {
+  synCor <- apply(ind_syn[[1]]@fit@H, 1, function(xx) apply(ind_syn[[i]]@fit@H, 1, function(yy) cov(xx, yy)))
+  comb <- apply(synCor, 2, function(x) which(x > 0), simplify = FALSE)
+  select_comb <- comb[apply(comb, 1, function(x) length(unique(x)) == nsyn), ]
+  if (nrow(select_comb) > 0) {
+    cost <- apply(select_comb, 1, function(x) sum(sapply(seq_along(x), function(y) synCor[x[y], y])))
+    synMatch[i, ] <- unlist(select_comb[which.max(cost), ])
+  }
+}
+```
+
+## Compute Population Synergies
+
+```{r population-synergies, eval=FALSE}
+simdat_mu <- apply(simdat, c(1, 2), mean)
+simdat_mu[simdat_mu < 0] <- 0
+nmf_pop <- nmf(simdat_mu, "brunet", rank = nsyn, seed = "nndsvd", nrun = nrun)
+W_pop <- nmf_pop@fit@W
+H_pop <- nmf_pop@fit@H
+```
+
+## Visualize Results
+
+### Visualize W Matrices
+
+```{r visualize-W, eval=FALSE}
+library(ggplot2)
+
+W_pop_rel <- apply(W_pop, 2, function(x) 100 * x / max(x))
+df_W <- data.frame(W_pop_rel)
+colnames(df_W) <- paste("Synergy", 1:nsyn)
+df_W$Time <- seq_len(nrow(W_pop_rel))
+df_W_long <- tidyr::gather(df_W, key = "Synergy", value = "Value", -Time)
+
+ggplot(data = df_W_long, aes(x = Time, y = Value, color = Synergy)) +
+  geom_line(size = 1.2) +
+  labs(x = "Time", y = "Value [%]", title = "W Matrix Synergy Comparison")
+```
+
+### Visualize H Matrices
+
+```{r visualize-H, eval=FALSE}
+H_pop_rel <- t(apply(H_pop, 1, function(x) 100 * x / max(x)))
+df_H <- data.frame(H_pop_rel)
+colnames(df_H) <- mn
+df_H$Synergy <- paste("Synergy", 1:nsyn)
+df_H_long <- tidyr::gather(df_H, key = "Muscle", value = "Value", -Synergy)
+
+ggplot(data = df_H_long, aes(x = Muscle, y = Value, fill = Synergy)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  labs(x = "Muscle", y = "Value [%]", title = "H Matrix Synergy Comparison")
+```
+
+## Save Results
+
+```{r save-results, eval=FALSE}
+save.image(file = paste0("results_", Sys.Date(), ".rda"))
+```
+
+# Conclusion
+
+This document provides a comprehensive pipeline for generating, analyzing, and visualizing muscle synergies. The approach covers simulation, synergy computation, matching, and population-level analysis.
