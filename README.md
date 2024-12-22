@@ -16,7 +16,7 @@ This repository contains a comprehensive pipeline for generating and analyzing m
 ---
 
 ## Overview
-
+![Graphical Abstract](1 - Untitled slide.png)
 
 **Background**: Motor modules, or muscle synergies, are fundamental neurophysiological commands essential for muscle coordination. In clinical settings, characterizing these modules at the population level is crucial for understanding pathophysiological mechanisms and assessing intervention outcomes. Traditional approaches estimate individual motor modules and align them across subjects. However, issues such as dependency on initial values, alignment ambiguities, and numerical instability in concatenated non-negative matrix factorization (cNMF) complicate the reliable characterization of the latent population distribution.
 
