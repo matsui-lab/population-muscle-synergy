@@ -1,14 +1,4 @@
-![image](https://github.com/user-attachments/assets/f5b1e92c-08bc-4c62-b989-e7b6f8c6b4ee)# Unbiased estimation of the population-level motor module![image](https://github.com/user-attachments/assets/1e26b39a-b780-4089-9243-438f26f4f2df)
-
-**Background**: Motor modules, or muscle synergies, are fundamental neurophysiological commands essential for muscle coordination. In clinical settings, characterizing these modules at the population level is crucial for understanding pathophysiological mechanisms and assessing intervention outcomes. Traditional approaches estimate individual motor modules and align them across subjects. However, issues such as dependency on initial values, alignment ambiguities, and numerical instability in concatenated non-negative matrix factorization (cNMF) complicate the reliable characterization of the latent population distribution.
-
-**Methods**: To address these challenges, we developed a robust statistical framework aimed at accurately capturing population-level motor module characteristics. We conducted simulation experiments to evaluate the performance of existing methods, including Module Matching and cNMF, under varying sample sizes and noise conditions. Subsequently, we proposed a novel estimation procedure leveraging functional data analysis to estimate motor modules directly from the population mean of muscle activity.
-
-**Results**: Our simulation results indicated that existing methods exhibit significant estimation biases and fail to converge as sample sizes increase, particularly in noisy environments. In contrast, our proposed approach demonstrated superior accuracy and robustness, reducing estimation bias and achieving asymptotic convergence with as few as 25 samples. Additionally, it maintained reliability even with 10% contaminated data, outperforming conventional methods in robustness to outliers.
-
-**Conclusions**: These findings underscore critical limitations in widely used NMF-based approaches and introduce a robust alternative for unbiased estimation of population-level motor modules. Our framework holds significant potential for clinical and experimental applications, facilitating precise evaluation of motor control mechanisms and intervention effects across diverse populations. Future research should focus on refining this approach to accommodate heterogeneous subpopulations and expanding its applicability to various motor tasks.
-![image](https://github.com/user-attachments/assets/f7b028b3-bcf9-4ae4-b6ea-f8d80a05d132)
-
+# Unbiased estimation of the population-level motor module
 
 This repository contains a comprehensive pipeline for generating and analyzing muscle synergy data using Non-negative Matrix Factorization (NMF). The pipeline is designed for large-scale simulation and synergy analysis, including individual and population-level computations, synergy matching, and result visualization.
 
@@ -26,6 +16,16 @@ This repository contains a comprehensive pipeline for generating and analyzing m
 ---
 
 ## Overview
+
+
+**Background**: Motor modules, or muscle synergies, are fundamental neurophysiological commands essential for muscle coordination. In clinical settings, characterizing these modules at the population level is crucial for understanding pathophysiological mechanisms and assessing intervention outcomes. Traditional approaches estimate individual motor modules and align them across subjects. However, issues such as dependency on initial values, alignment ambiguities, and numerical instability in concatenated non-negative matrix factorization (cNMF) complicate the reliable characterization of the latent population distribution.
+
+**Methods**: To address these challenges, we developed a robust statistical framework aimed at accurately capturing population-level motor module characteristics. We conducted simulation experiments to evaluate the performance of existing methods, including Module Matching and cNMF, under varying sample sizes and noise conditions. Subsequently, we proposed a novel estimation procedure leveraging functional data analysis to estimate motor modules directly from the population mean of muscle activity.
+
+**Results**: Our simulation results indicated that existing methods exhibit significant estimation biases and fail to converge as sample sizes increase, particularly in noisy environments. In contrast, our proposed approach demonstrated superior accuracy and robustness, reducing estimation bias and achieving asymptotic convergence with as few as 25 samples. Additionally, it maintained reliability even with 10% contaminated data, outperforming conventional methods in robustness to outliers.
+
+**Conclusions**: These findings underscore critical limitations in widely used NMF-based approaches and introduce a robust alternative for unbiased estimation of population-level motor modules. Our framework holds significant potential for clinical and experimental applications, facilitating precise evaluation of motor control mechanisms and intervention effects across diverse populations. Future research should focus on refining this approach to accommodate heterogeneous subpopulations and expanding its applicability to various motor tasks.
+
 
 This project implements a pipeline for:
 - Generating synthetic muscle activity data.
