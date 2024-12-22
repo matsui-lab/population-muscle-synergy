@@ -1,10 +1,5 @@
 # population-muscle-synergy
 
-以下に、上記のRMarkdownを説明するREADME.mdファイルの例を示します。このREADMEは、RMarkdownの目的、使い方、依存関係、内容の概要を提供します。
-
----
-
-# Synergy Simulation and Analysis Pipeline
 
 This repository contains a comprehensive pipeline for generating and analyzing muscle synergy data using Non-negative Matrix Factorization (NMF). The pipeline is designed for large-scale simulation and synergy analysis, including individual and population-level computations, synergy matching, and result visualization.
 
